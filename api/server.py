@@ -1,4 +1,6 @@
+from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional, Dict, Any
 from agent.bot import create_react_agent_custom
 from utils.logger import get_logger
@@ -11,7 +13,112 @@ logger = get_logger(__name__)
 
 app = FastAPI(title="ReAct Agent API")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        # "http://localhost:5174",
+        # "http://localhost:5175",
+        # "http://localhost:5176",
+        # "http://localhost:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 agent = None
+
+@app.on_event("startup")
+async def startup_event():
+    global agent
+    try:
+        agent = create_react_agent_custom()
+        logger.info("Agent initialised in API")
+    except Exception as e :
+        logger.error(f"Failed to initialize agent:{e}")
+        pass
+
+class ChatRequest(BaseModel):
+    messages : str
+    history: Optional[List[Dict[str, Any]]] = None
+
+@app.post("/chat")
+async def chat(request: ChatRequest):
+    global agent
+    if not agent:
+        raise HTTPException(status_code = 500, detail="Agent not initialised")
+    try:
+        # Build the full message history for the agent
+        langchain_messages = []
+
+        # Add conversation history if provided
+        if request.history:
+            for msg in request.history[:-1]:  # Exclude the last msg (it's the current one)
+                role = msg.get("role", "user")
+                content = msg.get("content", "")
+                if isinstance(content, str) and content.strip():
+                    if role == "assistant":
+                        langchain_messages.append(("assistant", content))
+                    else:
+                        langchain_messages.append(("user", content))
+
+        # Add the current user message
+        langchain_messages.append(("user", request.messages))
+
+        response = agent.invoke({"messages": langchain_messages})
+        if isinstance(response,dict) and "messages" in response:
+            messages = response["messages"]
+            if messages:
+                last_msg = messages[-1]
+                content = last_msg.content
+                # LangChain can return content as a list of blocks
+                if isinstance(content, list):
+                    text_parts = []
+                    for block in content:
+                        if isinstance(block, dict) and "text" in block:
+                            text_parts.append(block["text"])
+                        elif isinstance(block, str):
+                            text_parts.append(block)
+                    content = "\n".join(text_parts)
+                elif not isinstance(content, str):
+                    content = str(content)
+                return {"response": content}
+        return {"response": "No response from agent."}
+    except Exception as e:
+        logger.error(f"Error during chat:{e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/calendar")
+def get_calendar(date: str = Query(..., description="Date in YYYY-MM-DD format")):
+    """Get calendar events for a specific date."""
+    try:
+        # The tool returns a dict or error string, handle both
+        result = get_calendar_events.invoke({"date": date})
+        if isinstance(result, dict) and "error" in result:
+             raise HTTPException(status_code=400, detail=result["error"])
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching calendar: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/notes")
+def get_pending_notes():
+    """Get all pending notes."""
+    try:
+        notes = get_notes.invoke({})
+        if isinstance(notes, list) and len(notes) > 0 and isinstance(notes[0], str) and notes[0].startswith("Error"):
+             raise HTTPException(status_code=400, detail=notes[0])
+        return {"notes": notes}
+    except Exception as e:
+        logger.error(f"Error fetching notes: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/health")
+def health():
+    return {"status":"ok"}
+
+
 
 
 
