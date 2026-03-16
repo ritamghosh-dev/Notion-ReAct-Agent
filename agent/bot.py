@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.agents import create_agent
+from langgraph.prebuilt import create_react_agent
 from tools.weather import get_weather
 from tools.notion_notes import get_notes, add_notes
 from tools.notion_calendar import get_calendar_events,add_calendar_event 
@@ -67,7 +67,7 @@ def create_react_agent_custom():
     system_prompt = get_system_prompt()
 
     try:
-        agent= create_agent(model=llm, tools = tools, system_prompt=system_prompt)
+        agent= create_react_agent(model=llm, tools = tools, prompt=system_prompt)
         logger.info("Agent Initialised")
         return agent
 
