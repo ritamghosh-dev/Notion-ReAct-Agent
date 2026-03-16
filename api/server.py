@@ -1,6 +1,10 @@
+import os
+from pathlib import Path
 from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from typing import List, Optional, Dict, Any
 from agent.bot import create_react_agent_custom
 from utils.logger import get_logger
@@ -118,7 +122,19 @@ def get_pending_notes():
 def health():
     return {"status":"ok"}
 
+# --- Serve the React frontend ---
+STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
+if STATIC_DIR.exists():
+    # Mount the assets directory (JS, CSS, images)
+    app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")
 
-
-
+    # Catch-all: serve index.html for any non-API route (React client-side routing)
+    @app.get("/{full_path:path}")
+    async def serve_frontend(full_path: str):
+        # If the requested file exists in static dir, serve it directly
+        file_path = STATIC_DIR / full_path
+        if full_path and file_path.exists() and file_path.is_file():
+            return FileResponse(file_path)
+        # Otherwise, serve index.html (let React handle routing)
+        return FileResponse(STATIC_DIR / "index.html")

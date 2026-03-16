@@ -14,7 +14,7 @@ export const CalendarWidget: React.FC = () => {
             setLoading(true);
             setError(null);
             try {
-                const response = await axios.get<CalendarResponse>(`http://localhost:8000/calendar?date=${date}`);
+                const response = await axios.get<CalendarResponse>(`/calendar?date=${date}`);
                 setEvents(response.data);
             } catch (err) {
                 setError('Failed to load events');

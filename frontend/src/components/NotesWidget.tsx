@@ -11,7 +11,7 @@ export const NotesWidget: React.FC = () => {
         const fetchNotes = async () => {
             setLoading(true);
             try {
-                const response = await axios.get<{ notes: string[] }>('http://localhost:8000/notes');
+                const response = await axios.get<{ notes: string[] }>('/notes');
                 setNotes(response.data.notes);
             } catch (err) {
                 setError('Failed to load notes');

@@ -32,7 +32,7 @@ export const ChatInterface: React.FC = () => {
 
         try {
             const allMessages = [...messages, userMessage];
-            const response = await axios.post<{ response: string }>('http://localhost:8000/chat', {
+            const response = await axios.post<{ response: string }>('/chat', {
                 messages: userMessage.content,
                 history: allMessages.map(msg => ({
                     role: msg.role,
